@@ -1,0 +1,104 @@
+namespace BankProductsAPI.Models
+{
+    public class User
+    {
+        public int Id { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public List<string> Roles { get; set; } = new List<string>();
+    }
+}namespace BankProductsAPI.Models
+{
+    public class BankProduct
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public decimal InterestRate { get; set; }
+        public bool IsActive { get; set; }
+    }
+}using BankProductsAPI.Models;
+
+namespace BankProductsAPI.Services
+{
+    public interface IUserService
+    {
+        User? ValidateUser(string username, string password);
+    }
+
+    public class UserService : IUserService
+    {
+        private readonly List<User> _users = new()
+        {
+            new User { Id = 1, UserName = "AdminUser", Password = "Admin123", Email = "admin@bank.com", Roles = new List<string> { "Admin" } },
+            new User { Id = 2, UserName = "ManagerUser", Password = "Manager123", Email = "manager@bank.com", Roles = new List<string> { "Manager" } },
+            new User { Id = 3, UserName = "ClientUser", Password = "Client123", Email = "client@bank.com", Roles = new List<string> { "Client" } }
+        };
+
+        public User? ValidateUser(string username, string password)
+        {
+            return _users.FirstOrDefault(u => 
+                u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase) && 
+                u.Password == password);
+        }
+    }
+}
+using BankProductsAPI.Models;
+
+namespace BankProductsAPI.Services
+{
+    public interface IProductService
+    {
+        IEnumerable<BankProduct> GetAll();
+        BankProduct? GetById(int id);
+        void Add(BankProduct product);
+        bool Update(BankProduct product);
+        bool Delete(int id);
+    }
+
+    public class ProductService : IProductService
+    {
+        private readonly List<BankProduct> _products = new()
+        {
+            new BankProduct { Id = 1, Name = "Накопительный вклад", Description = "Вклад с высоким процентом и ежемесячной капитализацией", InterestRate = 14.5m, IsActive = true },
+            new BankProduct { Id = 2, Name = "Потребительский кредит", Description = "Кредит наличными на любые цели без залога", InterestRate = 21.0m, IsActive = true },
+            new BankProduct { Id = 3, Name = "Ипотека Стандарт", Description = "Льготное ипотечное кредитование недвижимости", InterestRate = 8.5m, IsActive = true },
+            new BankProduct { Id = 4, Name = "Кредитная карта 365 дней", Description = "Кредитная карта с беспроцентным периодом на год", InterestRate = 29.9m, IsActive = true },
+            new BankProduct { Id = 5, Name = "Валютный счет", Description = "Счет в иностранной валюте с возможностью конвертации", InterestRate = 1.0m, IsActive = false }
+        };
+
+        public IEnumerable<BankProduct> GetAll() => _products;
+
+        public BankProduct? GetById(int id) => _products.FirstOrDefault(p => p.Id == id);
+
+        public void Add(BankProduct product)
+        {
+            product.Id = _products.Any() ? _products.Max(p => p.Id) + 1 : 1;
+            _products.Add(product);
+        }
+
+        public bool Update(BankProduct product)
+        {
+            var existing = GetById(product.Id);
+            if (existing == null) return false;
+
+            existing.Name = product.Name;
+            existing.Description = product.Description;
+            existing.InterestRate = product.InterestRate;
+            existing.IsActive = product.IsActive;
+            return true;
+        }
+
+
+
+        public bool Delete(int id)
+        {
+            var product = GetById(id);
+            if (product == null) return false;
+
+            _products.Remove(product);
+            return true;
+        }
+    }
+}
