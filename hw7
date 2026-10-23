@@ -1,0 +1,104 @@
+namespace UniversityCoursesAPI.Models
+{
+    public class User
+    {
+        public int Id { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public List<string> Roles { get; set; } = new List<string>();
+    }
+}
+namespace UniversityCoursesAPI.Models
+{
+    public class Course
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Teacher { get; set; } = string.Empty;
+        public int Duration { get; set; } // длительность в часах
+    }
+}
+using UniversityCoursesAPI.Models;
+
+namespace UniversityCoursesAPI.Services
+{
+    public interface IUserService
+    {
+        User? ValidateUser(string username, string password);
+    }
+
+    public class UserService : IUserService
+    {
+        private readonly List<User> _users = new()
+        {
+            new User { Id = 1, UserName = "AdminUser", Password = "Admin123", Email = "admin@uni.edu", Roles = new List<string> { "Admin" } },
+            new User { Id = 2, UserName = "TeacherUser", Password = "Teacher123", Email = "teacher@uni.edu", Roles = new List<string> { "Teacher" } },
+            new User { Id = 3, UserName = "StudentUser", Password = "Student123", Email = "student@uni.edu", Roles = new List<string> { "Student" } }
+        };
+
+        public User? ValidateUser(string username, string password)
+        {
+            return _users.FirstOrDefault(u => 
+                u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase) && 
+                u.Password == password);
+        }
+    }
+}
+using UniversityCoursesAPI.Models;
+
+namespace UniversityCoursesAPI.Services
+{
+    public interface ICourseService
+    {
+        IEnumerable<Course> GetAll();
+        Course? GetById(int id);
+        void Add(Course course);
+        bool Update(Course course);
+        bool Delete(int id);
+    }
+
+    public class CourseService : ICourseService
+    {
+        private readonly List<Course> _courses = new()
+        {
+            new Course { Id = 1, Title = "Разработка веб-сервисов", Description = "Изучение архитектуры REST API и ASP.NET Core", Teacher = "Герцен Е.А.", Duration = 72 },
+            new Course { Id = 2, Title = "Базы данных", Description = "Проектирование реляционных СУБД и оптимизация SQL-запросов", Teacher = "Абдолдина Ф.Н.", Duration = 90 },
+            new Course { Id = 3, Title = "Алгоритмы и структуры данных", Description = "Базовые структуры данных и алгоритмическая сложность", Teacher = "Иванов И.И.", Duration = 108 },
+            new Course { Id = 4, Title = "Объектно-ориентированное программирование", Description = "Принципы ООП и паттерны проектирования на C#", Teacher = "Петров П.П.", Duration = 120 },
+            new Course { Id = 5, Title = "Информационная безопасность", Description = "Основы защиты веб-приложений и криптографии", Teacher = "Сидоров С.С.", Duration = 60 }
+        };
+
+        public IEnumerable<Course> GetAll() => _courses;
+
+        public Course? GetById(int id) => _courses.FirstOrDefault(c => c.Id == id);
+
+        public void Add(Course course)
+        {
+            course.Id = _courses.Any() ? _courses.Max(c => c.Id) + 1 : 1;
+            _courses.Add(course);
+        }
+
+        public bool Update(Course course)
+        {
+            var existing = GetById(course.Id);
+            if (existing == null) return false;
+
+            existing.Title = course.Title;
+            existing.Description = course.Description;
+            existing.Teacher = course.Teacher;
+            existing.Duration = course.Duration;
+            return true;
+        }
+
+        public bool Delete(int id)
+        {
+            var course = GetById(id);
+            if (course == null) return false;
+
+            _courses.Remove(course);
+            return true;
+        }
+    }
+}
