@@ -1,0 +1,171 @@
+namespace EmployeeSecurityAPI.Models
+{
+    public class User
+    {
+        public int Id { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public List<string> Roles { get; set; } = new List<string>();
+    }
+}
+namespace EmployeeSecurityAPI.Models
+{
+    public class Employee
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Gender { get; set; } = string.Empty; // "Male" или "Female"
+        public decimal Salary { get; set; }
+    }
+}
+using EmployeeSecurityAPI.Models;
+
+namespace EmployeeSecurityAPI.Services
+{
+    public interface IUserService
+    {
+        User? ValidateUser(string username, string password);
+    }
+
+    public class UserService : IUserService
+    {
+        private readonly List<User> _users = new()
+        {
+            new User { Id = 1, UserName = "AdminUser", Password = "Admin123", Email = "admin@company.com", Roles = new List<string> { "Admin" } },
+            new User { Id = 2, UserName = "SuperadminUser", Password = "Super123", Email = "superadmin@company.com", Roles = new List<string> { "Superadmin" } },
+            new User { Id = 3, UserName = "BothUser", Password = "Both123", Email = "both@company.com", Roles = new List<string> { "Admin", "Superadmin" } }
+        };
+
+        public User? ValidateUser(string username, string password)
+        {
+            return _users.FirstOrDefault(u => u.UserName.Equals(username, StringComparison.OrdinalIgnoreCase) && u.Password == password);
+        }
+    }
+}
+using EmployeeSecurityAPI.Models;
+
+namespace EmployeeSecurityAPI.Services
+{
+    public interface IEmployeeService
+    {
+        IEnumerable<Employee> GetAll();
+        IEnumerable<Employee> GetByGender(string gender);
+        Employee? GetById(int id);
+    }
+
+    public class EmployeeService : IEmployeeService
+    {
+        private readonly List<Employee> _employees = new()
+        {
+            new Employee { Id = 1, Name = "Иван Иванов", Department = "IT", Gender = "Male", Salary = 500000 },
+            new Employee { Id = 2, Name = "Анна Петрова", Department = "HR", Gender = "Female", Salary = 450000 },
+            new Employee { Id = 3, Name = "Сергей Сидоров", Department = "IT", Gender = "Male", Salary = 600000 },
+            new Employee { Id = 4, Name = "Елена Смирнова", Department = "Finance", Gender = "Female", Salary = 550000 },
+            new Employee { Id = 5, Name = "Алексей Кузнецов", Department = "DevOps", Gender = "Male", Salary = 700000 },
+            new Employee { Id = 6, Name = "Мария Васильева", Department = "Marketing", Gender = "Female", Salary = 400000 },
+            new Employee { Id = 7, Name = "Дмитрий Попов", Department = "IT", Gender = "Male", Salary = 520000 },
+            new Employee { Id = 8, Name = "Ольга Соколова", Department = "HR", Gender = "Female", Salary = 480000 },
+            new Employee { Id = 9, Name = "Михаил Новиков", Department = "Sales", Gender = "Male", Salary = 460000 },
+            new Employee { Id = 10, Name = "Татьяна Морозова", Department = "Finance", Gender = "Female", Salary = 580000 }
+        };
+
+        public IEnumerable<Employee> GetAll() => _employees;
+
+        public IEnumerable<Employee> GetByGender(string gender) => 
+            _employees.Where(e => e.Gender.Equals(gender, StringComparison.OrdinalIgnoreCase));
+
+        public Employee? GetById(int id) => _employees.FirstOrDefault(e => e.Id == id);
+    }
+}
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text;
+using EmployeeSecurityAPI.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+
+namespace EmployeeSecurityAPI.Attributes
+{
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+    public class BasicAuthenticationAttribute : Attribute, IAuthorizationFilter
+    {
+        public void OnAuthorization(AuthorizationFilterContext context)
+        {
+            // Извлекаем заголовок Authorization
+            var authHeader = context.HttpContext.Request.Headers["Authorization"].FirstOrDefault();
+
+            if (string.IsNullOrEmpty(authHeader))
+            {
+                ReturnUnauthorized(context);
+                return;
+            }
+
+            try
+            {
+                // Проверяем наличие схемы Basic
+                var authHeaderValue = AuthenticationHeaderValue.Parse(authHeader);
+                if (!"Basic".Equals(authHeaderValue.Scheme, StringComparison.OrdinalIgnoreCase) || authHeaderValue.Parameter == null)
+                {
+                    ReturnUnauthorized(context);
+                    return;
+                }
+
+                // Декодируем Base64 строку
+                var credentialsBytes = Convert.FromBase64String(authHeaderValue.Parameter);
+                var credentials = Encoding.UTF8.GetString(credentialsBytes).Split(':', 2);
+
+                if (credentials.Length != 2)
+                {
+                    ReturnUnauthorized(context);
+                    return;
+                }
+
+                var username = credentials[0];
+                var password = credentials[1];
+
+                // Получаем сервис проверки пользователей
+                var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                var user = userService.ValidateUser(username, password);
+
+                if (user == null)
+                {
+                    ReturnUnauthorized(context);
+                    return;
+                }
+
+                // Создаем Claims для пользователя
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Name, user.UserName),
+                    new Claim(ClaimTypes.Email, user.Email)
+                };
+
+                // Добавляем роли в Claims
+                foreach (var role in user.Roles)
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, role));
+                }
+
+                // Создаем ClaimsIdentity и ClaimsPrincipal
+                var identity = new ClaimsIdentity(claims, "Basic");
+                var principal = new ClaimsPrincipal(identity);
+
+                // Устанавливаем пользователя в HttpContext
+                context.HttpContext.User = principal;
+            }
+            catch
+            {
+                ReturnUnauthorized(context);
+            }
+        }
+
+        private static void ReturnUnauthorized(AuthorizationFilterContext context)
+        {
+            context.HttpContext.Response.Headers["WWW-Authenticate"] = "Basic realm=\"EmployeeSecurityAPI\"";
+            context.Result = new UnauthorizedResult(); // 401 Unauthorized
+        }
+    }
+}
